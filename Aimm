@@ -1,0 +1,792 @@
+--==================================================
+-- MAIN MENU
+-- AIM LOCK + ESP + AIM FOV
+-- Roblox LocalScript
+--==================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
+
+--==================================================
+-- SETTINGS
+--==================================================
+
+local AimLock = false
+local ESPEnabled = false
+
+local FOVRadius = 150
+local MinFOV = 30
+local MaxFOV = 500
+
+local CurrentTarget = nil
+
+--==================================================
+-- XÓA MENU CŨ
+--==================================================
+
+local OldGui = PlayerGui:FindFirstChild("MainAimMenu")
+if OldGui then
+OldGui:Destroy()
+end
+
+--==================================================
+-- GUI
+--==================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MainAimMenu"
+ScreenGui.ResetOnSpawn = false
+
+-- QUAN TRỌNG:
+-- Dùng cùng hệ tọa độ với Viewport để tránh lệch tâm
+ScreenGui.IgnoreGuiInset = true
+
+ScreenGui.Parent = PlayerGui
+
+--==================================================
+-- HÀM LẤY TÂM MÀN HÌNH
+--==================================================
+
+local function GetScreenCenter()
+local ViewportSize = Camera.ViewportSize
+
+return Vector2.new(  
+    ViewportSize.X / 2,  
+    ViewportSize.Y / 2  
+)
+
+end
+
+--==================================================
+-- NÚT ẨN / HIỆN
+--==================================================
+
+local ToggleMenu = Instance.new("TextButton")
+ToggleMenu.Size = UDim2.new(0, 80, 0, 35)
+ToggleMenu.Position = UDim2.new(0, 15, 0.5, -20)
+ToggleMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleMenu.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleMenu.Text = "MENU"
+ToggleMenu.TextSize = 14
+ToggleMenu.BorderSizePixel = 0
+ToggleMenu.Parent = ScreenGui
+
+Instance.new("UICorner", ToggleMenu).CornerRadius = UDim.new(0, 8)
+
+--==================================================
+-- MAIN FRAME
+--==================================================
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 270, 0, 260)
+Main.Position = UDim2.new(0, 15, 0.5, -130)
+Main.BackgroundColor3 = Color3.fromRGB(22, 22, 25)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+
+--==================================================
+-- TITLE
+--==================================================
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.Text = "MAIN AIM MENU"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.Parent = Main
+
+--==================================================
+-- DRAG MENU
+--==================================================
+
+local dragging = false
+local dragStart
+local startPos
+
+local function UpdateDrag(input)
+local delta = input.Position - dragStart
+
+Main.Position = UDim2.new(  
+    startPos.X.Scale,  
+    startPos.X.Offset + delta.X,  
+    startPos.Y.Scale,  
+    startPos.Y.Offset + delta.Y  
+)
+
+end
+
+Main.InputBegan:Connect(function(input)
+
+if input.UserInputType == Enum.UserInputType.MouseButton1  
+or input.UserInputType == Enum.UserInputType.Touch then  
+
+    dragging = true  
+    dragStart = input.Position  
+    startPos = Main.Position  
+
+    input.Changed:Connect(function()  
+
+        if input.UserInputState == Enum.UserInputState.End then  
+            dragging = false  
+        end  
+
+    end)  
+
+end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+if dragging and (  
+    input.UserInputType == Enum.UserInputType.MouseMovement  
+    or input.UserInputType == Enum.UserInputType.Touch  
+) then  
+
+    UpdateDrag(input)  
+
+end
+
+end)
+
+--==================================================
+-- NÚT ẨN / HIỆN MENU
+--==================================================
+
+local MenuVisible = true
+
+ToggleMenu.MouseButton1Click:Connect(function()
+
+MenuVisible = not MenuVisible  
+Main.Visible = MenuVisible
+
+end)
+
+--==================================================
+-- AIM FOV CIRCLE
+--==================================================
+
+local FOVCircle = Instance.new("Frame")
+FOVCircle.Name = "AimFOV"
+FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+
+FOVCircle.BackgroundTransparency = 1
+FOVCircle.BorderSizePixel = 0
+FOVCircle.Visible = true
+FOVCircle.Parent = ScreenGui
+
+Instance.new("UICorner", FOVCircle).CornerRadius = UDim.new(1, 0)
+
+local CircleStroke = Instance.new("UIStroke")
+CircleStroke.Thickness = 2
+CircleStroke.Color = Color3.fromRGB(255, 255, 255)
+CircleStroke.Transparency = 0.15
+CircleStroke.Parent = FOVCircle
+
+--==================================================
+-- CẬP NHẬT VỊ TRÍ FOV
+--==================================================
+
+local function UpdateFOVPosition()
+
+local Center = GetScreenCenter()  
+
+FOVCircle.Position = UDim2.fromOffset(  
+    Center.X,  
+    Center.Y  
+)
+
+end
+
+--==================================================
+-- AIM LOCK BUTTON
+--==================================================
+
+local AimButton = Instance.new("TextButton")
+AimButton.Size = UDim2.new(0, 230, 0, 42)
+AimButton.Position = UDim2.new(0, 20, 0, 50)
+AimButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+AimButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AimButton.TextSize = 15
+AimButton.Font = Enum.Font.GothamBold
+AimButton.Text = "AIM LOCK : OFF"
+AimButton.BorderSizePixel = 0
+AimButton.Parent = Main
+
+Instance.new("UICorner", AimButton).CornerRadius = UDim.new(0, 8)
+
+--==================================================
+-- ESP BUTTON
+--==================================================
+
+local ESPButton = Instance.new("TextButton")
+ESPButton.Size = UDim2.new(0, 230, 0, 42)
+ESPButton.Position = UDim2.new(0, 20, 0, 100)
+ESPButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+ESPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ESPButton.TextSize = 15
+ESPButton.Font = Enum.Font.GothamBold
+ESPButton.Text = "ESP PLAYER : OFF"
+ESPButton.BorderSizePixel = 0
+ESPButton.Parent = Main
+
+Instance.new("UICorner", ESPButton).CornerRadius = UDim.new(0, 8)
+
+--==================================================
+-- FOV TITLE
+--==================================================
+
+local FOVLabel = Instance.new("TextLabel")
+FOVLabel.Size = UDim2.new(0, 230, 0, 25)
+FOVLabel.Position = UDim2.new(0, 20, 0, 150)
+FOVLabel.BackgroundTransparency = 1
+FOVLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FOVLabel.TextSize = 14
+FOVLabel.Font = Enum.Font.Gotham
+FOVLabel.Text = "AIM FOV : " .. FOVRadius
+FOVLabel.TextXAlignment = Enum.TextXAlignment.Left
+FOVLabel.Parent = Main
+
+--==================================================
+-- FOV SLIDER
+--==================================================
+
+local SliderBack = Instance.new("Frame")
+SliderBack.Size = UDim2.new(0, 230, 0, 8)
+SliderBack.Position = UDim2.new(0, 20, 0, 180)
+SliderBack.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+SliderBack.BorderSizePixel = 0
+SliderBack.Parent = Main
+
+Instance.new("UICorner", SliderBack).CornerRadius = UDim.new(1, 0)
+
+local SliderFill = Instance.new("Frame")
+SliderFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SliderFill.BorderSizePixel = 0
+SliderFill.Parent = SliderBack
+
+Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(1, 0)
+
+local SliderButton = Instance.new("TextButton")
+SliderButton.Size = UDim2.new(0, 18, 0, 18)
+SliderButton.AnchorPoint = Vector2.new(0.5, 0.5)
+SliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SliderButton.Text = ""
+SliderButton.BorderSizePixel = 0
+SliderButton.Parent = SliderBack
+
+Instance.new("UICorner", SliderButton).CornerRadius = UDim.new(1, 0)
+
+--==================================================
+-- UPDATE FOV
+--==================================================
+
+local function SetFOV(value)
+
+FOVRadius = math.clamp(value, MinFOV, MaxFOV)  
+
+local percent =  
+    (FOVRadius - MinFOV) /  
+    (MaxFOV - MinFOV)  
+
+SliderFill.Size = UDim2.new(  
+    percent,  
+    0,  
+    1,  
+    0  
+)  
+
+SliderButton.Position = UDim2.new(  
+    percent,  
+    0,  
+    0.5,  
+    0  
+)  
+
+FOVLabel.Text =  
+    "AIM FOV : " .. math.floor(FOVRadius)  
+
+FOVCircle.Size = UDim2.fromOffset(  
+    FOVRadius * 2,  
+    FOVRadius * 2  
+)  
+
+UpdateFOVPosition()
+
+end
+
+local SliderDragging = false
+
+local function UpdateSlider(input)
+
+local x = input.Position.X  
+local startX = SliderBack.AbsolutePosition.X  
+local width = SliderBack.AbsoluteSize.X  
+
+local percent = math.clamp(  
+    (x - startX) / width,  
+    0,  
+    1  
+)  
+
+local value =  
+    MinFOV +  
+    (MaxFOV - MinFOV) * percent  
+
+SetFOV(value)
+
+end
+
+SliderButton.InputBegan:Connect(function(input)
+
+if input.UserInputType == Enum.UserInputType.MouseButton1  
+or input.UserInputType == Enum.UserInputType.Touch then  
+
+    SliderDragging = true  
+
+end
+
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+
+if input.UserInputType == Enum.UserInputType.MouseButton1  
+or input.UserInputType == Enum.UserInputType.Touch then  
+
+    SliderDragging = false  
+
+end
+
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+
+if SliderDragging and (  
+    input.UserInputType == Enum.UserInputType.MouseMovement  
+    or input.UserInputType == Enum.UserInputType.Touch  
+) then  
+
+    UpdateSlider(input)  
+
+end
+
+end)
+
+--==================================================
+-- AIM TARGET CHECK
+--==================================================
+
+local function IsAlive(character)
+
+if not character then  
+    return false  
+end  
+
+local Humanoid =  
+    character:FindFirstChildOfClass("Humanoid")  
+
+return Humanoid and Humanoid.Health > 0
+
+end
+
+--==================================================
+-- TEAM CHECK
+--==================================================
+
+local function CanTarget(player)
+
+if player == LocalPlayer then  
+    return false  
+end  
+
+local Character = player.Character  
+
+if not IsAlive(Character) then  
+    return false  
+end  
+
+if LocalPlayer.Team ~= nil  
+and player.Team ~= nil  
+and LocalPlayer.Team == player.Team then  
+
+    return false  
+
+end  
+
+return true
+
+end
+
+--==================================================
+-- LINE OF SIGHT
+--==================================================
+
+local function IsVisible(character, targetPart)
+
+local Character = LocalPlayer.Character  
+
+if not Character then  
+    return false  
+end  
+
+local OriginPart =  
+    Character:FindFirstChild("Head")  
+    or Character:FindFirstChild("HumanoidRootPart")  
+
+if not OriginPart then  
+    return false  
+end  
+
+local Origin = OriginPart.Position  
+local Direction = targetPart.Position - Origin  
+
+local Params = RaycastParams.new()  
+
+Params.FilterType = Enum.RaycastFilterType.Exclude  
+
+Params.FilterDescendantsInstances = {  
+    Character,  
+    Camera  
+}  
+
+local Result = workspace:Raycast(  
+    Origin,  
+    Direction,  
+    Params  
+)  
+
+if not Result then  
+    return true  
+end  
+
+return Result.Instance:IsDescendantOf(character)
+
+end
+
+--==================================================
+-- TÌM PLAYER TRONG FOV
+--==================================================
+
+local function GetClosestTarget()
+
+local BestPlayer = nil  
+local BestDistance = math.huge  
+
+-- DÙNG CHÍNH XÁC CÙNG TÂM VỚI VÒNG FOV  
+local ScreenCenter = GetScreenCenter()  
+
+for _, player in ipairs(Players:GetPlayers()) do  
+
+    if CanTarget(player) then  
+
+        local Character = player.Character  
+        local Head = Character:FindFirstChild("Head")  
+
+        if Head then  
+
+            local ScreenPosition, OnScreen =  
+                Camera:WorldToViewportPoint(Head.Position)  
+
+            if OnScreen and ScreenPosition.Z > 0 then  
+
+                local ScreenPoint = Vector2.new(  
+                    ScreenPosition.X,  
+                    ScreenPosition.Y  
+                )  
+
+                local Distance =  
+                    (ScreenPoint - ScreenCenter).Magnitude  
+
+                if Distance <= FOVRadius then  
+
+                    if IsVisible(Character, Head) then  
+
+                        if Distance < BestDistance then  
+
+                            BestDistance = Distance  
+                            BestPlayer = player  
+
+                        end  
+
+                    end  
+
+                end  
+
+            end  
+
+        end  
+
+    end  
+
+end  
+
+return BestPlayer
+
+end
+
+--==================================================
+-- AIM LOCK
+--==================================================
+
+local function AimAtTarget()
+
+if not AimLock then  
+    CurrentTarget = nil  
+    return  
+end  
+
+local Target = GetClosestTarget()  
+
+CurrentTarget = Target  
+
+if not Target then  
+    return  
+end  
+
+local Character = Target.Character  
+
+if not Character then  
+    return  
+end  
+
+local Head = Character:FindFirstChild("Head")  
+
+if not Head then  
+    return  
+end  
+
+if not IsVisible(Character, Head) then  
+    CurrentTarget = nil  
+    return  
+end  
+
+Camera.CFrame = CFrame.lookAt(  
+    Camera.CFrame.Position,  
+    Head.Position  
+)
+
+end
+
+--==================================================
+-- AIM BUTTON
+--==================================================
+
+AimButton.MouseButton1Click:Connect(function()
+
+AimLock = not AimLock  
+
+if AimLock then  
+
+    AimButton.Text = "AIM LOCK : ON"  
+
+    AimButton.BackgroundColor3 =  
+        Color3.fromRGB(40, 130, 70)  
+
+else  
+
+    AimButton.Text = "AIM LOCK : OFF"  
+
+    AimButton.BackgroundColor3 =  
+        Color3.fromRGB(45, 45, 50)  
+
+    CurrentTarget = nil  
+
+end
+
+end)
+
+--==================================================
+-- ESP
+--==================================================
+
+local ESPObjects = {}
+
+local function RemoveESP(player)
+
+local Old = ESPObjects[player]  
+
+if Old then  
+
+    for _, object in pairs(Old) do  
+
+        if object then  
+            object:Destroy()  
+        end  
+
+    end  
+
+end  
+
+ESPObjects[player] = nil
+
+end
+
+local function CreateESP(player)
+
+if player == LocalPlayer then  
+    return  
+end  
+
+if ESPObjects[player] then  
+    return  
+end  
+
+local Character = player.Character  
+
+if not Character then  
+    return  
+end  
+
+local Highlight = Instance.new("Highlight")  
+
+Highlight.Name = "PlayerESP"  
+Highlight.FillTransparency = 0.75  
+Highlight.OutlineTransparency = 0  
+Highlight.DepthMode = Enum.HighlightDepthMode.Occluded  
+Highlight.Parent = Character  
+
+local Billboard = Instance.new("BillboardGui")  
+
+Billboard.Name = "PlayerNameESP"  
+Billboard.Size = UDim2.new(0, 150, 0, 30)  
+Billboard.StudsOffset = Vector3.new(0, 3, 0)  
+Billboard.AlwaysOnTop = true  
+Billboard.Parent = Character  
+
+local NameLabel = Instance.new("TextLabel")  
+
+NameLabel.Size = UDim2.new(1, 0, 1, 0)  
+NameLabel.BackgroundTransparency = 1  
+NameLabel.Text = player.DisplayName  
+NameLabel.TextColor3 =  
+    Color3.fromRGB(255, 255, 255)  
+
+NameLabel.TextStrokeTransparency = 0  
+NameLabel.TextSize = 14  
+NameLabel.Font = Enum.Font.GothamBold  
+NameLabel.Parent = Billboard  
+
+ESPObjects[player] = {  
+    Highlight,  
+    Billboard  
+}
+
+end
+
+local function RefreshESP()
+
+for _, player in ipairs(Players:GetPlayers()) do  
+
+    if player ~= LocalPlayer then  
+
+        if ESPEnabled then  
+            CreateESP(player)  
+        else  
+            RemoveESP(player)  
+        end  
+
+    end  
+
+end
+
+end
+
+ESPButton.MouseButton1Click:Connect(function()
+
+ESPEnabled = not ESPEnabled  
+
+if ESPEnabled then  
+
+    ESPButton.Text = "ESP PLAYER : ON"  
+
+    ESPButton.BackgroundColor3 =  
+        Color3.fromRGB(40, 130, 70)  
+
+else  
+
+    ESPButton.Text = "ESP PLAYER : OFF"  
+
+    ESPButton.BackgroundColor3 =  
+        Color3.fromRGB(45, 45, 50)  
+
+end  
+
+RefreshESP()
+
+end)
+
+--==================================================
+-- PLAYER JOIN
+--==================================================
+
+Players.PlayerAdded:Connect(function(player)
+
+player.CharacterAdded:Connect(function()  
+
+    task.wait(0.5)  
+
+    if ESPEnabled then  
+        CreateESP(player)  
+    end  
+
+end)
+
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+
+RemoveESP(player)
+
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+
+if player ~= LocalPlayer then  
+
+    player.CharacterAdded:Connect(function()  
+
+        task.wait(0.5)  
+
+        if ESPEnabled then  
+            CreateESP(player)  
+        end  
+
+    end)  
+
+end
+
+end
+
+--==================================================
+-- MAIN LOOP
+--==================================================
+
+RunService.RenderStepped:Connect(function()
+
+-- Luôn cập nhật đúng tâm màn hình  
+UpdateFOVPosition()  
+
+-- AIM  
+AimAtTarget()
+
+end)
+
+--==================================================
+-- KHỞI TẠO
+--==================================================
+
+SetFOV(FOVRadius)
+UpdateFOVPosition()
+RefreshESP()
+
+Cũng là aim này nhưng dành cho free fire
